@@ -1,0 +1,42 @@
+// Stack-gate probe: prove OZ modules import + compile under compiler 0.31.0.
+// A minimal "credit pool token" shape: Ownable + Pausable admin + a FungibleToken position.
+
+pragma language_version >= 0.21.0;
+
+import CompactStandardLibrary;
+import "./node_modules/@openzeppelin/compact-contracts/access/Ownable"
+  prefix Ownable_;
+import "./node_modules/@openzeppelin/compact-contracts/security/Pausable"
+  prefix Pausable_;
+import "./node_modules/@openzeppelin/compact-contracts/token/FungibleToken"
+  prefix FungibleToken_;
+
+constructor(
+  _name: Opaque<"string">,
+  _symbol: Opaque<"string">,
+  _decimals: Uint<8>,
+  _initOwner: Either<Bytes<32>, ContractAddress>,
+) {
+  Ownable_initialize(_initOwner);
+  FungibleToken_initialize(_name, _symbol, _decimals);
+}
+
+// admin-gated deposit that mints a position token to the lender; the token's
+// totalSupply IS the public pool total (summed safely inside FungibleToken).
+export circuit deposit(lender: Either<Bytes<32>, ContractAddress>, amount: Uint<128>): [] {
+  Pausable_assertNotPaused();
+  FungibleToken__mint(lender, amount);
+}
+
+export circuit poolTotal(): Uint<128> {
+  return FungibleToken_totalSupply();
+}
+
+export circuit positionOf(account: Either<Bytes<32>, ContractAddress>): Uint<128> {
+  return FungibleToken_balanceOf(account);
+}
+
+export circuit pause(): [] {
+  Ownable_assertOnlyOwner();
+  Pausable__pause();
+}
