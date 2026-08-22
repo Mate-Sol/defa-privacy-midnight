@@ -1,0 +1,17 @@
+// De-risk probe: does OZ ConfidentialFungibleToken (alpha) + its ElGamal/EcdhMask
+// crypto deps compile with our pinned compiler (0.31.0)? Prove it before we build
+// ConfidentialCreditPool on top of it.
+
+pragma language_version >= 0.23.0;
+
+import CompactStandardLibrary;
+import "./oz/crypto/ElGamal" prefix ElGamal_;
+import "./oz/token/ConfidentialFungibleToken" prefix CFT_;
+
+export circuit probe_balanceOf(account: Bytes<32>): ElGamal_Ciphertext {
+  return CFT_balanceOf(account);
+}
+
+export circuit probe_isRegistered(account: Bytes<32>): Boolean {
+  return CFT_isRegistered(account);
+}
