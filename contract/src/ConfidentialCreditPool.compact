@@ -1,0 +1,123 @@
+// ConfidentialCreditPool — DeFa's confidential credit primitive on Midnight.
+//
+// A lender deposits into the pool and receives a CONFIDENTIAL position: the
+// amount is ElGamal-encrypted on-chain (hidden even from total-diffing) and the
+// holder is a witness-derived accountId (identity hidden). What stays public is
+// only the pool's coarse health signal (number of positions + active flag) — NOT
+// individual amounts or who holds them. A lender selectively discloses their own
+// position off-chain by decrypting their balance ciphertext with their viewing
+// key (Midnight's native selective-disclosure model).
+//
+// This is the Wave-1 primitive: the confidential capital-in / private-position
+// -out half of the DeFa lending loop. Repay/claim lifecycle = Wave 2.
+
+pragma language_version >= 0.23.0;
+
+import CompactStandardLibrary;
+import "./oz/crypto/ElGamal" prefix ElGamal_;
+import "./oz/token/ConfidentialFungibleToken" prefix CFT_;
+
+// ---- Public ledger state (the ONLY things visible on-chain) ----
+
+// Pool administrator (Bytes<32> commitment, set at init). Admin-gated actions
+// check the caller's account against this.
+export ledger owner: Bytes<32>;
+
+// Emergency pause switch.
+export ledger paused: Boolean;
+
+// Number of confidential positions opened. A coarse pool-health signal that
+// leaks NO amount and NO holder identity.
+export ledger positionCount: Counter;
+
+// One-time setup guard for the pool wrapper (the token has its own).
+export ledger poolInitialized: Boolean;
+
+// The caller's confidential secret key (viewing key), supplied off-chain by the
+// wallet. Used to derive the caller's accountId for owner-gating, via the
+// token's pure `computeAccountId`. Must be the SAME secret the wallet uses for
+// the confidential token.
+witness pool_callerSK(): Bytes<32>;
+
+// ---- Constructor / initialization ----
+
+// Initializes the confidential position token and sets the pool owner at deploy
+// time. `ownerAccount` is the admin's registered accountId (Bytes<32>). Runs in
+// the constructor because the token's `initialize` writes sealed fields, which
+// are constructor-only.
+constructor(
+  name_: Opaque<"string">,
+  symbol_: Opaque<"string">,
+  decimals_: Uint<8>,
+  ownerAccount: Bytes<32>,
+) {
+  CFT_initialize(name_, symbol_, decimals_);
+  owner = disclose(ownerAccount);
+  paused = false;
+  poolInitialized = true;
+}
+
+// ---- Lender flow ----
+
+// One-time: a lender registers their ElGamal encryption key so they can hold a
+// confidential position. Returns the caller's derived accountId.
+export circuit registerLender(): Bytes<32> {
+  assertPoolInitialized();
+  return CFT_register();
+}
+
+// Deposit into the pool: mints a confidential position of `amount` to `account`.
+// The amount is ElGamal-encrypted in the token's balance ledger (hidden), and
+// only the holder can decrypt it with their viewing key. `account` must already
+// be registered (registerLender). The public positionCount ticks up; no amount
+// is ever revealed.
+//
+// NOTE (Wave-1 scope): the stablecoin transfer-in leg (shielded value custody)
+// lands in Wave 2; here the confidential position issuance IS the primitive.
+export circuit deposit(account: Bytes<32>, amount: Uint<128>): [] {
+  assertPoolInitialized();
+  assert(!paused, "ConfidentialCreditPool: paused");
+  assert(amount != 0, "ConfidentialCreditPool: zero amount");
+  assert(CFT_isRegistered(account), "ConfidentialCreditPool: lender not registered");
+  CFT__mint(account, amount);
+  positionCount.increment(1);
+}
+
+// Read a lender's confidential position as an ElGamal ciphertext. Publicly
+// callable, but the value is encrypted — only the holder (with their viewing
+// key) can decrypt it. This is the hook a lender uses to selectively disclose
+// their position to an auditor off-chain.
+export circuit positionOf(account: Bytes<32>): ElGamal_Ciphertext {
+  return CFT_balanceOf(account);
+}
+
+// Whether an account is registered to hold a confidential position.
+export circuit isLenderRegistered(account: Bytes<32>): Boolean {
+  return CFT_isRegistered(account);
+}
+
+// ---- Admin (owner-gated) ----
+
+export circuit pause(): [] {
+  assertOwner();
+  paused = true;
+}
+
+export circuit unpause(): [] {
+  assertOwner();
+  paused = false;
+}
+
+// ---- Internal helpers ----
+
+circuit assertPoolInitialized(): [] {
+  assert(poolInitialized, "ConfidentialCreditPool: not initialized");
+}
+
+// Gate an action to the pool owner: the caller must prove (via the token's
+// witness-derived accountId) that they are the registered owner.
+circuit assertOwner(): [] {
+  assertPoolInitialized();
+  const caller = CFT_computeAccountId(pool_callerSK());
+  assert(caller == owner, "ConfidentialCreditPool: not owner");
+}
