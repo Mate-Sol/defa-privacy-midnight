@@ -30,6 +30,10 @@ export ledger paused: Boolean;
 // leaks NO amount and NO holder identity.
 export ledger positionCount: Counter;
 
+// Number of yield-accrual events. A public activity signal — the yield *amounts*
+// stay confidential (ElGamal-encrypted onto each position).
+export ledger yieldAccrualCount: Counter;
+
 // One-time setup guard for the pool wrapper (the token has its own).
 export ledger poolInitialized: Boolean;
 
@@ -96,7 +100,31 @@ export circuit isLenderRegistered(account: Bytes<32>): Boolean {
   return CFT_isRegistered(account);
 }
 
+// Claim liquidity back: the lender burns `amount` of their own confidential
+// position (principal + accrued yield). The amount is verified against their
+// encrypted balance via the wallet's witness, so a lender can only claim what
+// they actually hold. In production this releases the underlying value to the
+// lender; in the Wave-1 POC the confidential position token IS the value.
+export circuit claim(amount: Uint<128>): [] {
+  assertPoolInitialized();
+  assert(!paused, "ConfidentialCreditPool: paused");
+  assert(amount != 0, "ConfidentialCreditPool: zero amount");
+  const _claimant = CFT__burn(amount);
+}
+
 // ---- Admin (owner-gated) ----
+
+// Accrue confidential yield onto a lender's position. Wave-1: the yield *source*
+// is simulated (admin-triggered); Wave-2 drives this from real borrower
+// repayments. The minted yield is ElGamal-encrypted onto the position — only the
+// holder can see how much their position grew. Public leg = just the event count.
+export circuit accrueYield(account: Bytes<32>, yieldAmount: Uint<128>): [] {
+  assertOwner();
+  assert(yieldAmount != 0, "ConfidentialCreditPool: zero yield");
+  assert(CFT_isRegistered(account), "ConfidentialCreditPool: lender not registered");
+  CFT__mint(account, yieldAmount);
+  yieldAccrualCount.increment(1);
+}
 
 export circuit pause(): [] {
   assertOwner();
