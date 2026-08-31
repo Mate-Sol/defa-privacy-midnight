@@ -15,12 +15,16 @@
 // wallet should rotate the seed per circuit invocation; a per-session seed is
 // the pragmatic Wave-1 choice and keeps balances/allowances/supply sound.
 
-import { getRandomValues } from 'node:crypto';
 import type {
   JubjubPoint,
   WitnessContext,
 } from '@midnight-ntwrk/compact-runtime';
 import { ecMulGenerator } from '@midnight-ntwrk/compact-runtime';
+
+// 32 cryptographically-random bytes via the standard Web Crypto global — works
+// in both Node 20+ and the browser (no node:crypto / Buffer dependency, so this
+// module bundles cleanly for the FE).
+const rand32 = (): Uint8Array => globalThis.crypto.getRandomValues(new Uint8Array(32));
 
 export type Ciphertext = {
   c1: JubjubPoint;
@@ -53,10 +57,10 @@ export type ConfidentialCreditPoolPrivateState = {
 export const ConfidentialCreditPoolPrivateState = {
   /** Fresh wallet: random SK, EK, and a RANDOM seed (real confidentiality). */
   generate: (): ConfidentialCreditPoolPrivateState => ({
-    secretKey: new Uint8Array(getRandomValues(Buffer.alloc(32))),
-    encryptionKey: new Uint8Array(getRandomValues(Buffer.alloc(32))),
+    secretKey: rand32(),
+    encryptionKey: rand32(),
     plaintextCache: new Map(),
-    randomnessSeed: new Uint8Array(getRandomValues(Buffer.alloc(32))),
+    randomnessSeed: rand32(),
   }),
 
   /** Deterministic construction from supplied secrets (tests / key import). */
@@ -69,7 +73,7 @@ export const ConfidentialCreditPoolPrivateState = {
     encryptionKey: ek,
     plaintextCache: new Map(),
     randomnessSeed:
-      randomnessSeed ?? new Uint8Array(getRandomValues(Buffer.alloc(32))),
+      randomnessSeed ?? rand32(),
   }),
 
   /** Record a known plaintext for a ciphertext (on send/receive). */

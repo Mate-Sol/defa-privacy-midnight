@@ -1,241 +1,267 @@
-// This file is part of midnightntwrk/example-bboard.
-// Copyright (C) Midnight Foundation
+// DeFa × Midnight — ConfidentialCreditPool API.
+//
+// An API for a deployed ConfidentialCreditPool: deploy/join, the lender flow
+// (registerLender → deposit → claim), confidential reads (positionOf,
+// isLenderRegistered), owner-gated admin (accrueYield, pause/unpause), and a
+// state$ observable of the pool's PUBLIC ledger signals. Adapted from the
+// midnightntwrk/example-bboard template.
 // SPDX-License-Identifier: Apache-2.0
-// Licensed under the Apache License, Version 2.0 (the "License");
-// You may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
 
 /**
- * Provides types and utilities for working with bulletin board contracts.
+ * Provides types and utilities for working with ConfidentialCreditPool contracts.
  *
  * @packageDocumentation
  */
 
-import * as BBoard from '../../contract/src/managed/bboard/contract/index.js';
+import * as CCP from '../../contract/src/managed/ConfidentialCreditPool/contract/index.js';
 
-import { type ContractAddress, convertFieldToBytes } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
+import { type ContractAddress } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
 import { type Logger } from 'pino';
 import {
-  type BBoardDerivedState,
-  type BBoardContract,
-  type BBoardProviders,
-  type DeployedBBoardContract,
-  bboardPrivateStateKey,
+  type ConfidentialCreditPoolDerivedState,
+  type ConfidentialCreditPoolContract,
+  type ConfidentialCreditPoolProviders,
+  type DeployedConfidentialCreditPoolContract,
+  confidentialCreditPoolPrivateStateKey,
 } from './common-types.js';
-import { CompiledBBoardContractContract } from '../../contract/src/index';
-import * as utils from './utils/index.js';
+import { CompiledConfidentialCreditPoolContract } from '../../contract/src/index';
 import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
-import { combineLatest, map, tap, from, type Observable } from 'rxjs';
+import { map, tap, type Observable } from 'rxjs';
 import { toHex } from '@midnight-ntwrk/midnight-js-utils';
-import { BBoardPrivateState, createBBoardPrivateState } from '../../contract/src/witnesses.js';
+import {
+  ConfidentialCreditPoolPrivateState,
+  type Ciphertext,
+} from '../../contract/src/witnesses.js';
 
-/** @internal */
-
-/**
- * An API for a deployed bulletin board.
- */
-export interface DeployedBBoardAPI {
-  readonly deployedContractAddress: ContractAddress;
-  readonly state$: Observable<BBoardDerivedState>;
-
-  post: (message: string) => Promise<void>;
-  takeDown: () => Promise<void>;
+/** Deploy-time configuration for a new pool. */
+export interface ConfidentialCreditPoolConfig {
+  /** Position-token name. Default `'DeFa Confidential Position'`. */
+  readonly name?: string;
+  /** Position-token symbol. Default `'dLP'`. */
+  readonly symbol?: string;
+  /** Position-token decimals. Default `6n`. */
+  readonly decimals?: bigint;
+  /**
+   * The pool owner's registered accountId (Bytes<32>). Owner-gated circuits
+   * (accrueYield, pause/unpause) check the caller against this. Defaults to 32
+   * zero bytes when omitted (fine for a register→deposit→positionOf round-trip;
+   * pass a real owner accountId to exercise the admin path).
+   */
+  readonly ownerAccount?: Uint8Array;
+  /** Seed the deployer's private state instead of generating a fresh one. */
+  readonly initialPrivateState?: ConfidentialCreditPoolPrivateState;
 }
 
 /**
- * Provides an implementation of {@link DeployedBBoardAPI} by adapting a deployed bulletin board
- * contract.
+ * An API for a deployed ConfidentialCreditPool.
+ */
+export interface DeployedConfidentialCreditPoolAPI {
+  readonly deployedContractAddress: ContractAddress;
+  readonly state$: Observable<ConfidentialCreditPoolDerivedState>;
+
+  /** One-time: register the caller's ElGamal keys; returns their accountId. */
+  registerLender: () => Promise<Uint8Array>;
+  /** Mint a confidential position of `amount` to a registered `account`. */
+  deposit: (account: Uint8Array, amount: bigint) => Promise<void>;
+  /** Burn `amount` of the caller's own confidential position (claim liquidity). */
+  claim: (amount: bigint) => Promise<void>;
+  /** Owner-only: accrue confidential yield onto a lender's position. */
+  accrueYield: (account: Uint8Array, yieldAmount: bigint) => Promise<void>;
+  /** Read a lender's SPENDABLE confidential position as an ElGamal ciphertext. */
+  positionOf: (account: Uint8Array) => Promise<Ciphertext>;
+  /** Read a lender's PENDING (deposited-but-not-yet-swept) confidential position. */
+  pendingOf: (account: Uint8Array) => Promise<Ciphertext>;
+  /** Roll the caller's pending deposit into their spendable position; returns accountId. */
+  sweep: () => Promise<Uint8Array>;
+  /** Whether an account is registered to hold a confidential position. */
+  isLenderRegistered: (account: Uint8Array) => Promise<boolean>;
+  /** Owner-only: emergency pause. */
+  pause: () => Promise<void>;
+  /** Owner-only: resume. */
+  unpause: () => Promise<void>;
+}
+
+/**
+ * Adapts a deployed {@link DeployedConfidentialCreditPoolContract} into a
+ * {@link DeployedConfidentialCreditPoolAPI}.
  *
  * @remarks
- * The `BBoardPrivateState` is managed at the DApp level by a private state provider. As such, this
- * private state is shared between all instances of {@link BBoardAPI}, and their underlying deployed
- * contracts. The private state defines a `'secretKey'` property that effectively identifies the current
- * user, and is used to determine if the current user is the owner of the message as the observable
- * contract state changes.
- *
- * In the future, Midnight.js will provide a private state provider that supports private state storage
- * keyed by contract address. This will remove the current workaround of sharing private state across
- * the deployed bulletin board contracts, and allows for a unique secret key to be generated for each bulletin
- * board that the user interacts with.
+ * The `ConfidentialCreditPoolPrivateState` (the wallet's confidential SK/EK +
+ * plaintext cache) is managed by the private state provider and shared across
+ * API instances, keyed by contract address.
  */
-// TODO: Update BBoardAPI to use contract level private state storage.
-export class BBoardAPI implements DeployedBBoardAPI {
+export class ConfidentialCreditPoolAPI implements DeployedConfidentialCreditPoolAPI {
   /** @internal */
   private constructor(
-    public readonly deployedContract: DeployedBBoardContract,
-    providers: BBoardProviders,
+    public readonly deployedContract: DeployedConfidentialCreditPoolContract,
+    providers: ConfidentialCreditPoolProviders,
     private readonly logger?: Logger,
   ) {
     this.deployedContractAddress = deployedContract.deployTxData.public.contractAddress;
     providers.privateStateProvider.setContractAddress(this.deployedContractAddress);
-    this.state$ = combineLatest(
-      [
-        // Combine public (ledger) state with...
-        providers.publicDataProvider.contractStateObservable(this.deployedContractAddress, { type: 'latest' }).pipe(
-          map((contractState) => BBoard.ledger(contractState.data)),
-          tap((ledgerState) =>
-            logger?.trace({
-              ledgerStateChanged: {
-                ledgerState: {
-                  ...ledgerState,
-                  state: ledgerState.state === BBoard.State.OCCUPIED ? 'occupied' : 'vacant',
-                  owner: toHex(ledgerState.owner),
-                },
-              },
-            }),
-          ),
+
+    this.state$ = providers.publicDataProvider
+      .contractStateObservable(this.deployedContractAddress, { type: 'latest' })
+      .pipe(
+        map((contractState) => CCP.ledger(contractState.data)),
+        tap((ledgerState) =>
+          logger?.trace({
+            ledgerStateChanged: {
+              positionCount: ledgerState.positionCount,
+              yieldAccrualCount: ledgerState.yieldAccrualCount,
+              paused: ledgerState.paused,
+              owner: toHex(ledgerState.owner),
+            },
+          }),
         ),
-        // ...private state...
-        //    since the private state of the bulletin board application never changes, we can query the
-        //    private state once and always use the same value with `combineLatest`. In applications
-        //    where the private state is expected to change, we would need to make this an `Observable`.
-        from(providers.privateStateProvider.get(bboardPrivateStateKey) as Promise<BBoardPrivateState>),
-      ],
-      // ...and combine them to produce the required derived state.
-      (ledgerState, privateState) => {
-        const hashedSecretKey = BBoard.pureCircuits.publicKey(
-          privateState.secretKey,
-          convertFieldToBytes(32, ledgerState.sequence, 'api/src/index.ts'),
-        );
-
-        return {
-          state: ledgerState.state,
-          message: ledgerState.message.value,
-          sequence: ledgerState.sequence,
-          isOwner: toHex(ledgerState.owner) === toHex(hashedSecretKey),
-        };
-      },
-    );
+        map(
+          (ledgerState): ConfidentialCreditPoolDerivedState => ({
+            owner: toHex(ledgerState.owner),
+            paused: ledgerState.paused,
+            positionCount: ledgerState.positionCount,
+            yieldAccrualCount: ledgerState.yieldAccrualCount,
+            poolInitialized: ledgerState.poolInitialized,
+          }),
+        ),
+      );
   }
 
-  /**
-   * Gets the address of the current deployed contract.
-   */
   readonly deployedContractAddress: ContractAddress;
+  readonly state$: Observable<ConfidentialCreditPoolDerivedState>;
 
-  /**
-   * Gets an observable stream of state changes based on the current public (ledger),
-   * and private state data.
-   */
-  readonly state$: Observable<BBoardDerivedState>;
-
-  /**
-   * Attempts to post a given message to the bulletin board.
-   *
-   * @param message The message to post.
-   *
-   * @remarks
-   * This method can fail during local circuit execution if the bulletin board is currently occupied.
-   */
-  async post(message: string): Promise<void> {
-    this.logger?.info(`postingMessage: ${message}`);
-
-    const txData = await this.deployedContract.callTx.post(message);
-
+  async registerLender(): Promise<Uint8Array> {
+    this.logger?.info('registerLender');
+    const txData = await this.deployedContract.callTx.registerLender();
     this.logger?.trace({
-      transactionAdded: {
-        circuit: 'post',
-        txHash: txData.public.txHash,
-        blockHeight: txData.public.blockHeight,
-      },
+      transactionAdded: { circuit: 'registerLender', txHash: txData.public.txHash },
+    });
+    return txData.private.result;
+  }
+
+  async deposit(account: Uint8Array, amount: bigint): Promise<void> {
+    this.logger?.info(`deposit: ${amount} to ${toHex(account)}`);
+    const txData = await this.deployedContract.callTx.deposit(account, amount);
+    this.logger?.trace({
+      transactionAdded: { circuit: 'deposit', txHash: txData.public.txHash },
     });
   }
 
-  /**
-   * Attempts to take down any currently posted message on the bulletin board.
-   *
-   * @remarks
-   * This method can fail during local circuit execution if the bulletin board is currently vacant,
-   * or if the currently posted message isn't owned by the owner computed from the current private
-   * state.
-   */
-  async takeDown(): Promise<void> {
-    this.logger?.info('takingDownMessage');
-
-    const txData = await this.deployedContract.callTx.takeDown();
-
+  async claim(amount: bigint): Promise<void> {
+    this.logger?.info(`claim: ${amount}`);
+    const txData = await this.deployedContract.callTx.claim(amount);
     this.logger?.trace({
-      transactionAdded: {
-        circuit: 'takeDown',
-        txHash: txData.public.txHash,
-        blockHeight: txData.public.blockHeight,
-      },
+      transactionAdded: { circuit: 'claim', txHash: txData.public.txHash },
     });
   }
 
+  async accrueYield(account: Uint8Array, yieldAmount: bigint): Promise<void> {
+    this.logger?.info(`accrueYield: ${yieldAmount} to ${toHex(account)}`);
+    const txData = await this.deployedContract.callTx.accrueYield(account, yieldAmount);
+    this.logger?.trace({
+      transactionAdded: { circuit: 'accrueYield', txHash: txData.public.txHash },
+    });
+  }
+
+  async positionOf(account: Uint8Array): Promise<Ciphertext> {
+    this.logger?.info(`positionOf: ${toHex(account)}`);
+    const txData = await this.deployedContract.callTx.positionOf(account);
+    return txData.private.result;
+  }
+
+  async pendingOf(account: Uint8Array): Promise<Ciphertext> {
+    this.logger?.info(`pendingOf: ${toHex(account)}`);
+    const txData = await this.deployedContract.callTx.pendingOf(account);
+    return txData.private.result;
+  }
+
+  async sweep(): Promise<Uint8Array> {
+    this.logger?.info('sweep');
+    const txData = await this.deployedContract.callTx.sweep();
+    this.logger?.trace({
+      transactionAdded: { circuit: 'sweep', txHash: txData.public.txHash },
+    });
+    return txData.private.result;
+  }
+
+  async isLenderRegistered(account: Uint8Array): Promise<boolean> {
+    const txData = await this.deployedContract.callTx.isLenderRegistered(account);
+    return txData.private.result;
+  }
+
+  async pause(): Promise<void> {
+    this.logger?.info('pause');
+    await this.deployedContract.callTx.pause();
+  }
+
+  async unpause(): Promise<void> {
+    this.logger?.info('unpause');
+    await this.deployedContract.callTx.unpause();
+  }
+
   /**
-   * Deploys a new bulletin board contract to the network.
-   *
-   * @param providers The bulletin board providers.
-   * @param logger An optional 'pino' logger to use for logging.
-   * @returns A `Promise` that resolves with a {@link BBoardAPI} instance that manages the newly deployed
-   * {@link DeployedBBoardContract}; or rejects with a deployment error.
+   * Deploys a new ConfidentialCreditPool contract to the network.
    */
-  static async deploy(providers: BBoardProviders, logger?: Logger): Promise<BBoardAPI> {
+  static async deploy(
+    providers: ConfidentialCreditPoolProviders,
+    config: ConfidentialCreditPoolConfig = {},
+    logger?: Logger,
+  ): Promise<ConfidentialCreditPoolAPI> {
     logger?.info('deployContract');
 
-    const deployedBBoardContract = await deployContract(providers, {
-      compiledContract: CompiledBBoardContractContract,
-      privateStateId: bboardPrivateStateKey,
-      initialPrivateState: createBBoardPrivateState(utils.randomBytes(32)),
+    const deployed = await deployContract(providers, {
+      compiledContract: CompiledConfidentialCreditPoolContract,
+      privateStateId: confidentialCreditPoolPrivateStateKey,
+      initialPrivateState: config.initialPrivateState ?? ConfidentialCreditPoolPrivateState.generate(),
+      args: [
+        config.name ?? 'DeFa Confidential Position',
+        config.symbol ?? 'dLP',
+        config.decimals ?? 6n,
+        config.ownerAccount ?? new Uint8Array(32),
+      ],
     });
 
     logger?.trace({
       contractDeployed: {
-        finalizedDeployTxData: deployedBBoardContract.deployTxData.public,
+        finalizedDeployTxData: deployed.deployTxData.public,
       },
     });
 
-    return new BBoardAPI(deployedBBoardContract, providers, logger);
+    return new ConfidentialCreditPoolAPI(deployed, providers, logger);
   }
 
   /**
-   * Finds an already deployed bulletin board contract on the network, and joins it.
-   *
-   * @param providers The bulletin board providers.
-   * @param contractAddress The contract address of the deployed bulletin board contract to search for and join.
-   * @param logger An optional 'pino' logger to use for logging.
-   * @returns A `Promise` that resolves with a {@link BBoardAPI} instance that manages the joined
-   * {@link DeployedBBoardContract}; or rejects with an error.
+   * Finds an already-deployed ConfidentialCreditPool contract and joins it.
    */
-  static async join(providers: BBoardProviders, contractAddress: ContractAddress, logger?: Logger): Promise<BBoardAPI> {
-    logger?.info({
-      joinContract: {
-        contractAddress,
-      },
-    });
+  static async join(
+    providers: ConfidentialCreditPoolProviders,
+    contractAddress: ContractAddress,
+    logger?: Logger,
+  ): Promise<ConfidentialCreditPoolAPI> {
+    logger?.info({ joinContract: { contractAddress } });
 
-    const deployedBBoardContract = await findDeployedContract<BBoardContract>(providers, {
+    const deployed = await findDeployedContract<ConfidentialCreditPoolContract>(providers, {
       contractAddress,
-      compiledContract: CompiledBBoardContractContract,
-      privateStateId: bboardPrivateStateKey,
-      initialPrivateState: await BBoardAPI.getPrivateState(providers, contractAddress),
+      compiledContract: CompiledConfidentialCreditPoolContract,
+      privateStateId: confidentialCreditPoolPrivateStateKey,
+      initialPrivateState: await ConfidentialCreditPoolAPI.getPrivateState(providers, contractAddress),
     });
 
     logger?.trace({
       contractJoined: {
-        finalizedDeployTxData: deployedBBoardContract.deployTxData.public,
+        finalizedDeployTxData: deployed.deployTxData.public,
       },
     });
 
-    return new BBoardAPI(deployedBBoardContract, providers, logger);
+    return new ConfidentialCreditPoolAPI(deployed, providers, logger);
   }
 
   private static async getPrivateState(
-    providers: BBoardProviders,
+    providers: ConfidentialCreditPoolProviders,
     contractAddress: ContractAddress,
-  ): Promise<BBoardPrivateState> {
+  ): Promise<ConfidentialCreditPoolPrivateState> {
     providers.privateStateProvider.setContractAddress(contractAddress);
-    const existingPrivateState = await providers.privateStateProvider.get(bboardPrivateStateKey);
-    return existingPrivateState ?? createBBoardPrivateState(utils.randomBytes(32));
+    const existing = await providers.privateStateProvider.get(confidentialCreditPoolPrivateStateKey);
+    return existing ?? ConfidentialCreditPoolPrivateState.generate();
   }
 }
 
@@ -247,3 +273,8 @@ export class BBoardAPI implements DeployedBBoardAPI {
 export * as utils from './utils/index.js';
 
 export * from './common-types.js';
+
+// Re-export the private-state helper + ciphertext type so a consumer (e.g. the
+// FE wallet) has a single import surface for the confidential lender flow.
+export { ConfidentialCreditPoolPrivateState } from '../../contract/src/witnesses.js';
+export type { Ciphertext } from '../../contract/src/witnesses.js';

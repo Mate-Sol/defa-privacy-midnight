@@ -10,6 +10,7 @@
   },
   "workspaces": {
     "packages": [
+      "client",
       "bboard-cli",
       "bboard-ui",
       "api",

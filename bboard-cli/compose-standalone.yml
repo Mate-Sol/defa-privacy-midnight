@@ -1,0 +1,46 @@
+# Persistent local standalone Midnight stack for the DeFa FE demo.
+#
+# The testkit's compose.yml uses random host ports and is torn down by ryuk when
+# the test process exits — fine for a CLI round-trip, useless for a browser test
+# because the deployed contract dies with it. This one pins the ports so Lace and
+# the FE have a stable target, and stays up until you `compose down`.
+#
+#   docker compose -f compose-standalone.yml up -d
+#   docker compose -f compose-standalone.yml down -v
+services:
+  node:
+    image: 'midnightntwrk/midnight-node:0.22.3'
+    container_name: 'defa-midnight-node'
+    ports:
+      - '9944:9944'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9944/health']
+      interval: 2s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+    environment:
+      CFG_PRESET: 'dev'
+      SIDECHAIN_BLOCK_BENEFICIARY: '04bcf7ad3be7a5c790460be82a713af570f22e0f801f6659ab8e84a52be6969e'
+
+  indexer:
+    image: 'midnightntwrk/indexer-standalone:4.0.1'
+    container_name: 'defa-midnight-indexer'
+    ports:
+      - '8088:8088'
+    environment:
+      RUST_LOG: 'indexer=info,chain_indexer=info,indexer_api=info,wallet_indexer=info,indexer_common=info,fastrace_opentelemetry=info,info'
+      # Random 32-byte hex secret to satisfy the standalone indexer's config
+      # schema. Not a credential — the standalone indexer has no real auth.
+      APP__INFRA__SECRET: '303132333435363738393031323334353637383930313233343536373839303132'
+      APP__INFRA__NODE__URL: 'ws://node:9944'
+    depends_on:
+      node:
+        condition: service_healthy
+
+  proof-server:
+    image: midnightntwrk/proof-server:8.0.3
+    container_name: 'defa-midnight-proof-server'
+    command: ['midnight-proof-server', '-v']
+    ports:
+      - '6300:6300'

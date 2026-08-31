@@ -71,3 +71,12 @@ wallet.json
 seed.txt
 .env.*
 !.env.example
+
+# Compiled ZK artifacts — regenerated from contract/src/managed/ via
+# `npm run sync:zk` in client/ (39MB; not source, don't commit)
+client/public/keys/
+client/public/zkir/
+client/.env.local
+
+# Next.js build output (old frontend/, removed)
+.next/

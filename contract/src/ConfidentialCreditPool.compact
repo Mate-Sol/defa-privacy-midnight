@@ -9,7 +9,12 @@
 // key (Midnight's native selective-disclosure model).
 //
 // This is the Wave-1 primitive: the confidential capital-in / private-position
-// -out half of the DeFa lending loop. Repay/claim lifecycle = Wave 2.
+// -out half of the DeFa lending loop, PLUS the lender's claim path (sweep +
+// claim). The underlying confidential token credits deposits to a PENDING
+// balance (anti-grief); the lender sweeps it into their spendable position
+// (which positionOf then reflects) and claims from there. The borrower/repay
+// yield SOURCE is admin-simulated (accrueYield) in Wave-1; Wave 2 drives it
+// from the real PayMate pipeline.
 
 pragma language_version >= 0.23.0;
 
@@ -98,6 +103,29 @@ export circuit positionOf(account: Bytes<32>): ElGamal_Ciphertext {
 // Whether an account is registered to hold a confidential position.
 export circuit isLenderRegistered(account: Bytes<32>): Boolean {
   return CFT_isRegistered(account);
+}
+
+// Roll the caller's incoming (pending) deposit into their SPENDABLE position.
+//
+// The underlying confidential token credits deposits to a PENDING balance
+// (an anti-grief split: only the holder can move value into their spendable
+// balance, so a third party can't churn it). `positionOf` (= spendable balance)
+// therefore reads zero until the lender sweeps, and `claim` burns from spendable
+// — so the lender's own flow is deposit -> sweep -> (positionOf reflects it) ->
+// claim. Fully confidential: BOTH balances are ElGamal-encrypted; sweeping only
+// reveals that a sweep happened (like the public positionCount), never amounts.
+// Returns the caller's accountId.
+export circuit sweep(): Bytes<32> {
+  assertPoolInitialized();
+  assert(!paused, "ConfidentialCreditPool: paused");
+  return CFT_sweep();
+}
+
+// Read a lender's PENDING (deposited-but-not-yet-swept) confidential position as
+// an ElGamal ciphertext. A lender's TOTAL position = positionOf + pendingOf
+// (both encrypted). Publicly callable; the value stays encrypted.
+export circuit pendingOf(account: Bytes<32>): ElGamal_Ciphertext {
+  return CFT_pendingOf(account);
 }
 
 // Claim liquidity back: the lender burns `amount` of their own confidential
