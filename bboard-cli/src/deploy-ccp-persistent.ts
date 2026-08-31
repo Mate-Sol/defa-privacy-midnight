@@ -19,6 +19,8 @@ import {
   type PrivateStateId,
 } from '../../api/src/index';
 import { ConfidentialCreditPoolPrivateState } from '../../contract/src/witnesses.js';
+import { persistentHash, CompactTypeBytes } from '@midnight-ntwrk/compact-runtime';
+import { toHex } from '@midnight-ntwrk/midnight-js-utils';
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
@@ -84,6 +86,18 @@ async function main(): Promise<void> {
     midnightProvider: walletProvider,
   };
 
+  // The owner-gated circuits (accrueYield / pause / unpause) compare the
+  // caller's derived accountId to the on-chain `owner`. Deploying without an
+  // ownerAccount defaults it to 32 zero bytes, which NO wallet can ever derive
+  // — permanently bricking all three. accountId is persistentHash(sk) and is
+  // pure, so derive it from the private state we're about to deploy with.
+  const initialPrivateState = ConfidentialCreditPoolPrivateState.generate();
+  const ownerAccount = persistentHash(
+    new CompactTypeBytes(32),
+    initialPrivateState.secretKey,
+  );
+  logger.info(`owner accountId: ${toHex(ownerAccount)}`);
+
   logger.info('Deploying ConfidentialCreditPool...');
   const api = await ConfidentialCreditPoolAPI.deploy(
     providers,
@@ -91,7 +105,8 @@ async function main(): Promise<void> {
       name: 'DeFa Confidential Position',
       symbol: 'dLP',
       decimals: 6n,
-      initialPrivateState: ConfidentialCreditPoolPrivateState.generate(),
+      ownerAccount,
+      initialPrivateState,
     },
     logger,
   );

@@ -29,6 +29,7 @@ import {
   confidentialCreditPoolPrivateStateKey,
 } from '../../api/src/index';
 import { ConfidentialCreditPoolPrivateState as PS } from '../../contract/src/witnesses.js';
+import { persistentHash, CompactTypeBytes } from '@midnight-ntwrk/compact-runtime';
 import { ConfidentialCreditPoolPrivateState } from '../../contract/src/witnesses.js';
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
@@ -152,13 +153,22 @@ async function main(): Promise<void> {
 
   // ── DEPLOY a dedicated pool for this run ─────────────────────────────
   console.log('[1] DEPLOY pool');
+  // Owner-gated circuits compare the caller's accountId to `owner`. Deploying
+  // without ownerAccount defaults it to 32 zero bytes, which no wallet can
+  // derive — bricking accrueYield/pause/unpause. accountId is persistentHash(sk).
+  const initialPrivateState = PS.generate();
+  const ownerAccount = persistentHash(
+    new CompactTypeBytes(32),
+    initialPrivateState.secretKey,
+  );
   const api = await ConfidentialCreditPoolAPI.deploy(
     providers,
     {
       name: 'DeFa Confidential Position',
       symbol: 'dLP',
       decimals: 6n,
-      initialPrivateState: PS.generate(),
+      ownerAccount,
+      initialPrivateState,
     },
     logger,
   );
@@ -292,6 +302,35 @@ async function main(): Promise<void> {
     const after2 = await liveLedger(providers, contractAddress);
     console.log(`      positionCount ${before2.positionCount} → ${after2.positionCount}`);
     check('positionCount incremented again on-chain', after2.positionCount > before2.positionCount);
+  }
+
+  // ── ACCRUE YIELD (owner-gated) ────────────────────────────────────────
+  // The pitch claims "confidential yield accrues onto your position". This is
+  // the circuit behind that claim, and it only works if the pool was deployed
+  // with a real owner — see the ownerAccount derivation above.
+  console.log('\n[7] ADMIN accrueYield() — confidential yield onto the position');
+  const beforeYield = await liveLedger(providers, contractAddress);
+  const ctBeforeYield = await api.positionOf(accountId);
+  const yieldAmount = 37n * UNIT;
+  try {
+    await api.accrueYield(accountId, yieldAmount);
+    await api.sweep(); // yield is minted to PENDING, same as a deposit
+    const ctAfterYield = await api.positionOf(accountId);
+    const afterYield = await liveLedger(providers, contractAddress);
+    console.log(`      position after yield: ${ctHex(ctAfterYield)}`);
+    console.log(`      yieldAccrualCount ${beforeYield.yieldAccrualCount} → ${afterYield.yieldAccrualCount}`);
+    check('owner can accrue yield (pool has a real owner)', true);
+    check(
+      'yield changed the encrypted position',
+      ctBeforeYield.c1.x !== ctAfterYield.c1.x || ctBeforeYield.c2.x !== ctAfterYield.c2.x,
+    );
+    check(
+      'public yieldAccrualCount incremented (amount stays hidden)',
+      afterYield.yieldAccrualCount > beforeYield.yieldAccrualCount,
+    );
+  } catch (e) {
+    console.log(`      ERROR: ${e instanceof Error ? e.message : String(e)}`);
+    check('owner can accrue yield (pool has a real owner)', false);
   }
 
   // ── summary ──────────────────────────────────────────────────────────
