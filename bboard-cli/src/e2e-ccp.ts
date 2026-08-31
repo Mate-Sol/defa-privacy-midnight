@@ -96,13 +96,22 @@ const check = (label: string, ok: boolean): void => {
   console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}`);
 };
 
-/** Read the contract address the FE is pointed at, so we test the same pool. */
+/**
+ * Informational only: which pool the FE is currently pointed at.
+ *
+ * client/.env.local is gitignored and absent on a fresh clone, and this run
+ * deploys its own pool anyway — so a missing file must not fail the test.
+ */
 function feContractAddress(): string {
-  const envFile = path.resolve(here, '..', '..', 'web', '.env.local');
-  const txt = fs.readFileSync(envFile, 'utf8');
-  const m = txt.match(/VITE_CCP_CONTRACT_ADDRESS=([0-9a-f]+)/);
-  if (!m) throw new Error('VITE_CCP_CONTRACT_ADDRESS not found in web/.env.local');
-  return m[1];
+  try {
+    const envFile = path.resolve(here, '..', '..', 'client', '.env.local');
+    const m = fs
+      .readFileSync(envFile, 'utf8')
+      .match(/VITE_CCP_CONTRACT_ADDRESS=([0-9a-f]+)/);
+    return m ? m[1] : '(not set)';
+  } catch {
+    return '(client/.env.local not present)';
+  }
 }
 
 async function main(): Promise<void> {

@@ -1,5 +1,5 @@
 {
-  "name": "defa-privacy-midnight-web",
+  "name": "defa-privacy-midnight-client",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "sync:zk": "rm -rf public/keys public/zkir && cp -R ../contract/src/managed/ConfidentialCreditPool/keys public/keys && cp -R ../contract/src/managed/ConfidentialCreditPool/zkir public/zkir",
+    "sync:zk": "node scripts/sync-zk.mjs",
     "predev": "npm run sync:zk",
     "prebuild": "npm run sync:zk"
   },
