@@ -5,14 +5,23 @@
 # because the deployed contract dies with it. This one pins the ports so Lace and
 # the FE have a stable target, and stays up until you `compose down`.
 #
-#   docker compose -f compose-standalone.yml up -d
-#   docker compose -f compose-standalone.yml down -v
+# Chain state is persisted in named volumes, so `restart` (or a Docker Desktop
+# restart) keeps the deployed contract alive. Note the difference:
+#
+#   docker compose -f compose-standalone.yml up -d      # start / resume
+#   docker compose -f compose-standalone.yml restart    # keeps the chain
+#   docker compose -f compose-standalone.yml down       # keeps the chain
+#   docker compose -f compose-standalone.yml down -v    # WIPES it (-v drops volumes)
 services:
   node:
     image: 'midnightntwrk/midnight-node:0.22.3'
     container_name: 'defa-midnight-node'
     ports:
       - '9944:9944'
+    # Persist chain state. Without this, every Docker restart wipes the chain
+    # and the deployed contract address changes — which is fatal mid-demo.
+    volumes:
+      - node-data:/node/chain
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:9944/health']
       interval: 2s
@@ -28,6 +37,8 @@ services:
     container_name: 'defa-midnight-indexer'
     ports:
       - '8088:8088'
+    volumes:
+      - indexer-data:/data
     environment:
       RUST_LOG: 'indexer=info,chain_indexer=info,indexer_api=info,wallet_indexer=info,indexer_common=info,fastrace_opentelemetry=info,info'
       # Random 32-byte hex secret to satisfy the standalone indexer's config
@@ -44,3 +55,7 @@ services:
     command: ['midnight-proof-server', '-v']
     ports:
       - '6300:6300'
+
+volumes:
+  node-data:
+  indexer-data:
