@@ -65,5 +65,8 @@
   },
   "resolutions": {
     "@midnight-ntwrk/wallet-sdk": "1.2.0"
+  },
+  "scripts": {
+    "demo": "bash scripts/demo.sh"
   }
 }

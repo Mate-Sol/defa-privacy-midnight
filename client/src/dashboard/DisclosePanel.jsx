@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Eye, ShieldCheck, Lock } from "lucide-react";
+import { Eye, ShieldCheck, Lock, Coins } from "lucide-react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Chip from "../components/ui/Chip";
@@ -23,6 +23,7 @@ const DisclosePanel = ({ deal }) => {
   const [busy, setBusy] = useState(null);
   const [disclosed, setDisclosed] = useState(null);
   const [claimAmount, setClaimAmount] = useState("");
+  const [yieldAmount, setYieldAmount] = useState("");
 
   if (!deal?.isLive) {
     return (
@@ -75,6 +76,26 @@ const DisclosePanel = ({ deal }) => {
       refresh();
     } catch (e) {
       toast.error(e?.message || "Claim failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const onAccrue = async () => {
+    if (!actions) return;
+    const amt = Number(yieldAmount);
+    if (!amt || amt <= 0) {
+      toast.warning("Enter a positive yield amount");
+      return;
+    }
+    setBusy("yield");
+    try {
+      await actions.accrueYield(BigInt(Math.round(amt * UNIT)));
+      toast.success(`Accrued ${amt} of confidential yield onto the position`);
+      setYieldAmount("");
+      refresh();
+    } catch (e) {
+      toast.error(e?.message || "Yield accrual failed");
     } finally {
       setBusy(null);
     }
@@ -165,6 +186,45 @@ const DisclosePanel = ({ deal }) => {
             </div>
           )}
         </>
+      )}
+
+      {/* Wave-1 simulated yield source — only the pool admin sees this. In
+          Wave-2 accrual is driven by real borrower repayments, not a button. */}
+      {isConnected && actions?.isOwner?.() && (
+        <div className="rounded-2xl border border-amber-300/30 bg-amber-300/5 p-4 flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <Coins size={15} className="text-amber-300" />
+            <span className="text-white/90 text-xs font-semibold uppercase tracking-wide">
+              Admin · simulated yield source (Wave-1)
+            </span>
+          </div>
+          <p className="text-white/50 text-[11px] leading-relaxed">
+            Stands in for a borrower repayment. The amount is encrypted onto the
+            lender&apos;s position — only the public accrual count moves.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={yieldAmount}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (/^\d*\.?\d*$/.test(v)) setYieldAmount(v);
+              }}
+              placeholder="Yield amount"
+              className="min-w-0 flex-1 bg-white/10 border border-white/20 rounded-2xl px-4 py-2.5 text-white text-sm outline-none placeholder-white/40 focus:border-white/40"
+            />
+            <Button
+              variant="solid"
+              color="default"
+              onClick={onAccrue}
+              disabled={!!busy}
+              className="py-2.5 px-6! rounded-2xl text-sm whitespace-nowrap"
+            >
+              {busy === "yield" ? "Accruing…" : "Accrue"}
+            </Button>
+          </div>
+        </div>
       )}
 
       <p className="text-white/40 text-xs leading-relaxed border-t border-white/10 pt-3">

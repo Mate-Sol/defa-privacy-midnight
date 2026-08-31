@@ -63,12 +63,10 @@ const RegisterPage = () => {
 
   const onSubmit = async (data) => {
     try {
-      debugger;
       if (!otpCode) {
         toast.error("otp invalid or not found");
         return;
       }
-      debugger;
       setLoading(true);
       const res = await axiosInstance.post("/users/create-user", {
         userName: data?.userName,

@@ -26,4 +26,28 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // Files cloned verbatim from the DeFa Arc FE. The port deliberately changed
+    // only the data layer and actions — rewriting these to satisfy lint would
+    // reintroduce exactly the visual drift the clone exists to avoid. Their
+    // pre-existing style issues are downgraded here rather than "fixed"; code
+    // written for this repo (src/midnight/**, src/libs/midnightPools.js) is
+    // still held to the full ruleset.
+    files: [
+      'src/Mock/**',
+      'src/components/**',
+      'src/dashboard/**',
+      'src/pages/**',
+    ],
+    rules: {
+      'no-unused-vars': 'off',
+      'react-refresh/only-export-components': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
+  {
+    // Our own React context legitimately exports a hook alongside the provider.
+    files: ['src/midnight/context.jsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
 ])

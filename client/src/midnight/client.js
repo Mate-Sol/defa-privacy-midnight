@@ -15,7 +15,9 @@ import {
   ConfidentialCreditPoolPrivateState,
   confidentialCreditPoolPrivateStateKey,
 } from "../../../api/src/index";
+import { firstValueFrom } from "rxjs";
 import { fromHex, toHex } from "@midnight-ntwrk/midnight-js-protocol/compact-runtime";
+import { persistentHash, CompactTypeBytes } from "@midnight-ntwrk/compact-runtime";
 import { FetchZkConfigProvider } from "@midnight-ntwrk/midnight-js-fetch-zk-config-provider";
 import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
 import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
@@ -114,12 +116,44 @@ export async function connectAndResolvePool() {
   const providers = await initializeProviders();
 
   const existing = import.meta.env.VITE_CCP_CONTRACT_ADDRESS;
+
+  // Owner-gated circuits (accrueYield / pause / unpause) compare the caller's
+  // derived accountId to the on-chain `owner`. Deploying without ownerAccount
+  // defaults it to 32 zero bytes, which no wallet can derive — bricking all
+  // three. accountId is persistentHash(sk) and is pure, so derive it up front.
+  const initialPrivateState = ConfidentialCreditPoolPrivateState.generate();
+  const myAccountId = persistentHash(
+    new CompactTypeBytes(32),
+    initialPrivateState.secretKey,
+  );
+
   const api = existing
     ? await ConfidentialCreditPoolAPI.join(providers, existing, logger)
-    : await ConfidentialCreditPoolAPI.deploy(providers, {}, logger);
+    : await ConfidentialCreditPoolAPI.deploy(
+        providers,
+        {
+          name: "DeFa Confidential Position",
+          symbol: "dLP",
+          decimals: 6n,
+          ownerAccount: myAccountId,
+          initialPrivateState,
+        },
+        logger,
+      );
 
   const contractAddress = api.deployedContractAddress;
   const coinPk = providers.walletProvider.getCoinPublicKey();
+
+  // Are we the pool's admin? True when this wallet deployed it; false when
+  // joining a pool someone else (e.g. the CLI) deployed. Drives whether the
+  // Wave-1 simulated-yield control is offered at all.
+  let isOwner = false;
+  try {
+    const st = await firstValueFrom(api.state$);
+    isOwner = st.owner === toHex(myAccountId);
+  } catch {
+    isOwner = false;
+  }
 
   // Wallet-side plaintext tracking (Phase-1b): OZ's ConfidentialFungibleToken
   // verifies Dec(ciphertext) == plaintext when burning, so the wallet must
@@ -224,6 +258,20 @@ export async function connectAndResolvePool() {
       // ciphertext to the plaintext it tracks for its own position.
       return { amount: tracked, ciphertextHex };
     },
+    /**
+     * Wave-1 simulated yield source: mints confidential yield onto a position.
+     * Owner-gated — in Wave-2 this is driven by real borrower repayments rather
+     * than an admin action. The amount is encrypted onto the position; only the
+     * public accrual COUNT moves.
+     */
+    accrueYield: async (amount) => {
+      if (!accountId) throw new Error("No position yet — invest first.");
+      await api.accrueYield(accountId, amount);
+      await api.sweep(); // yield lands in PENDING, same as a deposit
+      tracked += amount;
+      await recache();
+    },
+    isOwner: () => isOwner,
     position: () => tracked,
     accountId: () => (accountId ? toHex(accountId) : null),
     state$: () => api.state$,
