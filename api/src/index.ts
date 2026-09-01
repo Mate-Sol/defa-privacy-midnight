@@ -15,8 +15,8 @@
 
 import * as CCP from '../../contract/src/managed/ConfidentialCreditPool/contract/index.js';
 
-import { type ContractAddress } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
-import { type Logger } from 'pino';
+import type { ContractAddress } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
+import type { Logger } from 'pino';
 import {
   type ConfidentialCreditPoolDerivedState,
   type ConfidentialCreditPoolContract,

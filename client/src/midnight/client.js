@@ -21,18 +21,33 @@ import { persistentHash, CompactTypeBytes } from "@midnight-ntwrk/compact-runtim
 import { FetchZkConfigProvider } from "@midnight-ntwrk/midnight-js-fetch-zk-config-provider";
 import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
 import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
+import { setNetworkId } from "@midnight-ntwrk/midnight-js-network-id";
 import {
   Binding,
   Proof,
   SignatureEnabled,
   Transaction,
 } from "@midnight-ntwrk/midnight-js-protocol/ledger";
-import pino from "pino";
 import semver from "semver";
 
 const COMPATIBLE_CONNECTOR_API_VERSION = "4.x";
 
-const logger = pino({ level: "info" });
+/**
+ * Minimal browser logger.
+ *
+ * pino was pulled in here originally, but Vite bundles its NODE build, which
+ * touches process.stderr/stdout/hrtime — and `process` does not exist in the
+ * browser, so connecting threw "process is not defined". The API only ever
+ * calls logger?.info / logger?.trace, so a console shim is all that is needed
+ * and it keeps a Node-only dependency out of the bundle entirely.
+ */
+const logger = {
+  info: (...a) => console.info("[midnight]", ...a),
+  trace: (...a) => console.debug("[midnight]", ...a),
+  warn: (...a) => console.warn("[midnight]", ...a),
+  error: (...a) => console.error("[midnight]", ...a),
+  debug: (...a) => console.debug("[midnight]", ...a),
+};
 
 /** Discover the first API-compatible injected Midnight wallet (Lace). */
 function getFirstCompatibleWallet() {
@@ -67,6 +82,10 @@ async function connectToWallet(networkId) {
 
 async function initializeProviders() {
   const networkId = import.meta.env.VITE_NETWORK_ID ?? "undeployed";
+  // The SDK keeps network id in module-level state and throws
+  // "Network ID has not been configured" on any wallet/contract call until this
+  // is set. Every CLI entrypoint calls it; the browser path needs it too.
+  setNetworkId(networkId);
   const connectedAPI = await connectToWallet(networkId);
   const config = await connectedAPI.getConfiguration();
   const shieldedAddresses = await connectedAPI.getShieldedAddresses();

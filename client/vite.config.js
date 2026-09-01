@@ -40,6 +40,9 @@ export default defineConfig({
       // subscription. Point both specifiers at a shim that exports both shapes.
       "isomorphic-ws": path.resolve(__dirname, "./src/midnight/ws-shim.mjs"),
       ws: path.resolve(__dirname, "./src/midnight/ws-shim.mjs"),
+      // midnight-js-types pulls pino; Vite resolves its Node build, which uses
+      // `process` and breaks in the browser. Map it onto console instead.
+      pino: path.resolve(__dirname, "./src/midnight/pino-shim.mjs"),
     },
     extensions: [".mjs", ".js", ".ts", ".jsx", ".tsx", ".json", ".wasm"],
     mainFields: ["browser", "module", "main"],

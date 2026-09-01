@@ -10,8 +10,8 @@
  * @module
  */
 
-import { type MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
-import { type FoundContract } from '@midnight-ntwrk/midnight-js-contracts';
+import type { MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
+import type { FoundContract } from '@midnight-ntwrk/midnight-js-contracts';
 import type {
   ConfidentialCreditPoolPrivateState,
   Contract,
