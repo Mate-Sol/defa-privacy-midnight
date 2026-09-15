@@ -1,9 +1,10 @@
-# Wave-1 demo — recording script (no wallet required)
+# Wave-1 demo — recording script (no Lace required)
 
-~3 minutes. Everything shown is real and on-chain except where a beat says
-otherwise. The Lace click-through is deliberately NOT in this cut: connecting is
-free but every transaction needs DUST, and DUST registration was not reachable
-in the Lace build we had on the day. Nothing about the proof depends on it.
+~4 minutes. Everything shown is real and on-chain except where a beat says
+otherwise. The portal's buttons sign with a **local dev wallet** — the standalone
+chain's funded account, held by `bboard-cli/src/dev-wallet-server.ts` — because
+Lace can't pay fees (DUST) on this stack yet. The transactions and ZK proofs are
+real either way.
 
 ## Setup (before recording)
 
@@ -18,7 +19,11 @@ npx tsx src/e2e-ccp.ts
 ```
 
 Checklist:
-- [ ] `127.0.0.1:5201` loads the connect screen
+- [ ] `npm run demo` printed `dev wallet: http://127.0.0.1:5301` (sync + deploy takes a few minutes)
+- [ ] `127.0.0.1:5201` loads the connect screen, with **Use local dev wallet** under Connect Lace
+- [ ] "Browse pools without a wallet" opens the Pools grid (read-only; actions still need Lace)
+- [ ] if the deploy step hangs: `cd bboard-cli && docker compose -f compose-standalone.yml down -v`, then `npm run demo` again
+- [ ] close other Chrome tabs first — proofs stall when the Mac is out of memory
 - [ ] `docker ps` shows node / indexer / proof-server
 - [ ] terminal font large enough to read on video
 
@@ -44,7 +49,7 @@ Point at the connect panel copy.
 
 ## Beat 3 — the product (35s)
 
-Walk **Pools** → the grid.
+Click **Browse pools without a wallet** (under Connect Lace) → the **Pools** grid.
 
 > "Twelve pools across the lifecycle. Eleven are simulated portfolio context and
 > badged Wave-2 — we label that rather than blur it."
@@ -56,7 +61,29 @@ tab bar, My Position, the deposit rail.
 > interface — same components, same design system — with the data layer moved
 > onto Midnight."
 
-## Beat 4 — the proof (60s) ← the centre of the video
+## Beat 3b — invest from the portal (90s) ← the centre of the video
+
+On the live pool, click **Use local dev wallet** (My Position panel or the
+deposit rail). Then, on camera:
+
+1. Deposit rail → enter `1000` → **Deposit confidentially**. Each step
+   (register → deposit → sweep) is a real ZK proof, so give it a minute or two;
+   the success toast ends with the tx hash.
+2. My Position → **Disclose** → the decrypted amount plus the on-chain ciphertext.
+3. Admin yield box → `50` → **Accrue** → the position grows; only the public
+   accrual count moves.
+4. **Claim** `400` → the ciphertext changes on-chain.
+
+> "Every click here is a real transaction on a Midnight node, with the
+> zero-knowledge proof generated locally. The signer is the local chain's funded
+> dev account — Lace can't pay fees on this stack yet — but the transactions,
+> the proofs and the encrypted position are the real thing."
+
+Tip: `tail -f bboard-cli/dev-wallet.log` prints each tx hash as it lands — a
+split-screen of it next to the portal is the most convincing shot. Cut the
+proof waits in editing.
+
+## Beat 4 — the proof (60s)
 
 Cut to the terminal. Run it.
 
@@ -100,7 +127,7 @@ Finish on the summary:
 
 ---
 
-## If asked why no wallet click-through
+## If asked why not Lace
 
 Say it plainly — it's a stronger answer than a demo:
 

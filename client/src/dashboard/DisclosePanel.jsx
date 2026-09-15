@@ -18,8 +18,22 @@ import { useMidnight } from "@/midnight/context";
  */
 const UNIT = 1_000_000; // 6 decimals
 
+// Dev-wallet actions return the submitted txs; Lace actions return nothing.
+const txSuffix = (res) => {
+  const hash = res?.steps?.at(-1)?.txHash;
+  return hash ? ` · tx ${hash.slice(0, 12)}…` : "";
+};
+
 const DisclosePanel = ({ deal }) => {
-  const { actions, isConnected, connect, refresh } = useMidnight();
+  const {
+    actions,
+    isConnected,
+    connect,
+    connectDev,
+    hasDevWallet,
+    refresh,
+    version,
+  } = useMidnight();
   const [busy, setBusy] = useState(null);
   const [disclosed, setDisclosed] = useState(null);
   const [claimAmount, setClaimAmount] = useState("");
@@ -49,9 +63,12 @@ const DisclosePanel = ({ deal }) => {
     setBusy("disclose");
     try {
       const res = await actions.disclose();
+      // Tag with the position version: a later deposit / claim / yield bumps
+      // it, which hides this point-in-time figure instead of leaving it stale.
       setDisclosed({
         amount: Number(res.amount) / UNIT,
         ciphertextHex: res.ciphertextHex,
+        version,
       });
       toast.success("Position decrypted with your viewing key");
     } catch (e) {
@@ -70,8 +87,10 @@ const DisclosePanel = ({ deal }) => {
     }
     setBusy("claim");
     try {
-      await actions.claim(BigInt(Math.round(amt * UNIT)));
-      toast.success(`Claimed ${amt} back from your confidential position`);
+      const res = await actions.claim(BigInt(Math.round(amt * UNIT)));
+      toast.success(
+        `Claimed ${amt} back from your confidential position${txSuffix(res)}`,
+      );
       setClaimAmount("");
       refresh();
     } catch (e) {
@@ -90,8 +109,10 @@ const DisclosePanel = ({ deal }) => {
     }
     setBusy("yield");
     try {
-      await actions.accrueYield(BigInt(Math.round(amt * UNIT)));
-      toast.success(`Accrued ${amt} of confidential yield onto the position`);
+      const res = await actions.accrueYield(BigInt(Math.round(amt * UNIT)));
+      toast.success(
+        `Accrued ${amt} of confidential yield onto the position${txSuffix(res)}`,
+      );
       setYieldAmount("");
       refresh();
     } catch (e) {
@@ -125,10 +146,12 @@ const DisclosePanel = ({ deal }) => {
         <Button
           variant="gradient"
           color="primary"
-          onClick={() => void connect()}
+          onClick={() => void (hasDevWallet ? connectDev() : connect())}
           className="w-full py-3 rounded-2xl text-sm"
         >
-          Connect Lace to view your position
+          {hasDevWallet
+            ? "Use local dev wallet to view your position"
+            : "Connect Lace to view your position"}
         </Button>
       ) : (
         <>
@@ -168,7 +191,7 @@ const DisclosePanel = ({ deal }) => {
             </div>
           </div>
 
-          {disclosed && (
+          {disclosed && disclosed.version === version && (
             <div className="rounded-2xl bg-emerald-400/10 border border-emerald-400/30 p-4 flex flex-col gap-1">
               <span className="text-white/60 text-xs uppercase tracking-wide">
                 Disclosed to auditor

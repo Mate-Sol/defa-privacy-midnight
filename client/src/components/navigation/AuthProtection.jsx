@@ -14,14 +14,14 @@ import mainLogo from "@/assets/multiChain-ui/main-defa-logo.svg";
  */
 const AuthProtection = ({ children }) => {
   const navigate = useNavigate();
-  const { isConnected, isConnecting } = useMidnight();
+  const { isConnected, isConnecting, viewOnly } = useMidnight();
 
   useEffect(() => {
-    // Not connected and not mid-connect → back to the connect screen.
-    if (!isConnected && !isConnecting) navigate("/");
-  }, [isConnected, isConnecting, navigate]);
+    // Not connected, not mid-connect, not browsing read-only → connect screen.
+    if (!isConnected && !isConnecting && !viewOnly) navigate("/");
+  }, [isConnected, isConnecting, viewOnly, navigate]);
 
-  if (!isConnected)
+  if (!isConnected && !viewOnly)
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 z-50 bg-overlay">
         <img src={mainLogo} alt="DeFa Logo" className="h-9 w-auto opacity-90" />

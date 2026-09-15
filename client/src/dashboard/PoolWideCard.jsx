@@ -104,14 +104,12 @@ const PoolWideCard = ({ onClick, deal }) => {
     return timestampToDate(deal?.poolEndTime) || "N/A";
   })();
 
-  const amountCollectedPercentage = deal?.overview?.loanAmount
-    ? Number(
-        (
-          ((deal?.poolAmountRaised || 0) / (deal?.overview?.loanAmount || 1)) *
-          100
-        ).toFixed(),
-      )
-    : 0;
+  // overview.loanAmount is a display string ("$ 2,000,000"); use the numeric
+  // raisedPct from midnightPools instead of dividing by it.
+  const amountCollectedPercentage = Math.min(
+    100,
+    Math.max(0, Number(deal?.raisedPct) || 0),
+  );
 
   return (
     <div
@@ -205,7 +203,7 @@ const PoolWideCard = ({ onClick, deal }) => {
               />
             </div>
             <p className="text-white/90 text-[12px]">
-              {amountCollectedPercentage}
+              {amountCollectedPercentage}%
             </p>
           </div>
 

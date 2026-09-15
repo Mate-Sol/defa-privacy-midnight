@@ -19,7 +19,16 @@ import { useMidnight } from "@/midnight/context";
  */
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { connect, status, error, isConnected, isConnecting } = useMidnight();
+  const {
+    connect,
+    connectDev,
+    hasDevWallet,
+    browse,
+    status,
+    error,
+    isConnected,
+    isConnecting,
+  } = useMidnight();
 
   useEffect(() => {
     if (isConnected) navigate("/dashboard");
@@ -73,6 +82,37 @@ const LoginPage = () => {
           >
             {isConnecting ? "Connecting…" : "Connect Lace"}
           </Button>
+
+          {hasDevWallet && (
+            <div className="flex flex-col gap-1.5">
+              <Button
+                type="button"
+                variant="solid"
+                color="default"
+                onClick={() => void connectDev()}
+                disabled={isConnecting}
+                className="w-full h-[46px] sm:h-[50px] text-[14px] sm:text-[15px]"
+              >
+                {isConnecting ? "Connecting…" : "Use local dev wallet"}
+              </Button>
+              <p className="text-white/60 text-[12px] leading-relaxed text-center">
+                Signs with the local Midnight chain's funded account — real
+                ZK-proven transactions, no Lace fees needed.
+              </p>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              browse();
+              navigate("/pools");
+            }}
+            disabled={isConnecting}
+            className="w-full text-center text-white/80 hover:text-white text-[13px] underline underline-offset-4"
+          >
+            Browse pools without a wallet
+          </button>
 
           {status === "error" && error && (
             <p className="text-red-400 text-[12px] pl-1 leading-relaxed">

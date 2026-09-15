@@ -26,8 +26,17 @@ import { useMidnight } from "@/midnight/context";
 const UNIT = 1_000_000; // dLP position token, 6 decimals
 
 const DepositForm = ({ walletBalance, currency = "USDC", apy = "12.00", deal }) => {
-  const { address, isConnected, actions, connect, isConnecting, refresh } =
-    useMidnight();
+  const {
+    address,
+    isConnected,
+    actions,
+    connect,
+    connectDev,
+    hasDevWallet,
+    isDevWallet,
+    isConnecting,
+    refresh,
+  } = useMidnight();
 
   const [usdcAmount, setUsdcAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -46,7 +55,7 @@ const DepositForm = ({ walletBalance, currency = "USDC", apy = "12.00", deal }) 
   const handleSubmit = async () => {
     try {
       if (!isConnected || !address || !actions) {
-        toast.error("Connect your Lace wallet first");
+        toast.error("Connect a wallet first");
         return;
       }
       if (parsedAmount <= 0) {
@@ -61,12 +70,17 @@ const DepositForm = ({ walletBalance, currency = "USDC", apy = "12.00", deal }) 
       }
 
       setSubmitting(true);
-      toast.info("Registering lender — sign in Lace");
-      const { accountId } = await actions.invest(
+      toast.info(
+        isDevWallet
+          ? "Proving register → deposit → sweep on Midnight…"
+          : "Registering lender — sign in Lace",
+      );
+      const { accountId, steps } = await actions.invest(
         BigInt(Math.round(parsedAmount * UNIT)),
       );
+      const lastTx = steps?.at(-1)?.txHash;
       toast.success(
-        `Deposited ${parsedAmount} confidentially → position ${accountId.slice(0, 10)}…`,
+        `Deposited ${parsedAmount} confidentially → position ${accountId.slice(0, 10)}…${lastTx ? ` · tx ${lastTx.slice(0, 12)}…` : ""}`,
       );
       setUsdcAmount("");
       refresh();
@@ -150,11 +164,15 @@ const DepositForm = ({ walletBalance, currency = "USDC", apy = "12.00", deal }) 
           <Button
             variant="solid"
             color="default"
-            onClick={() => void connect()}
+            onClick={() => void (hasDevWallet ? connectDev() : connect())}
             disabled={isConnecting}
             className="px-8 py-2.5 text-sm rounded-2xl"
           >
-            {isConnecting ? "Connecting…" : "Connect Lace"}
+            {isConnecting
+              ? "Connecting…"
+              : hasDevWallet
+                ? "Use local dev wallet"
+                : "Connect Lace"}
           </Button>
         </div>
       )}
