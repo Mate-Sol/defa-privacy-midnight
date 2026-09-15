@@ -98,32 +98,42 @@ contract-probes/  stack-gate experiments (MiniPool.compact — OZ import + compi
 
 ## Quickstart
 
-Prereqs: Node 24, Docker, `compact` CLI, and the Lace wallet on Midnight.
+Prereqs: **Node 24** and **Docker**. The compiled ZK artifacts are committed, so the `compact` compiler is only needed if you change the contract.
 
 ```bash
 npm install
-
-# 1. compile the contract (ZK artifacts are gitignored — build them locally)
-cd contract && npm run compact && cd ..
-
-# 2. bring up a local standalone stack (node :9944, indexer :8088, proof server :6300)
-cd bboard-cli && docker compose -f compose-standalone.yml up -d
-
-# 3. deploy a pool that persists beyond the process
-npx tsx src/deploy-ccp-persistent.ts     # prints the contract address
-cd ..
-
-# 4. point the FE at it
-echo "VITE_NETWORK_ID=undeployed"                        > client/.env.local
-echo "VITE_CCP_CONTRACT_ADDRESS=<address from step 3>"  >> client/.env.local
-
-# 5. run the FE (pre-dev copies the ZK artifacts into public/)
-cd client && npm run dev
+npm run demo
 ```
 
-Then point Lace at the same endpoints (node `:9944`, indexer `:8088`, proof server `:6300`) and connect. **A connected wallet is the session** — there is no backend and no account to create.
+`npm run demo` brings up a local standalone Midnight stack (node `:9944`, indexer `:8088`, proof server `:6300`), starts the **local dev wallet** on `:5301` — it syncs the chain's pre-funded account and deploys a pool it owns — and serves the portal at **http://127.0.0.1:5201**. First start takes a few minutes.
 
-> Tear down with `docker compose -f compose-standalone.yml down -v`. The node has no persistent volume, so a restart resets the chain and you'll need to redeploy.
+Then, in the portal:
+
+1. **Use local dev wallet** → **Pools** → the **● Live on Midnight** pool.
+2. **Deposit confidentially** — register → deposit → sweep, each a real ZK-proven transaction (a few minutes of proving on a laptop).
+3. **Disclose position** — decrypts your own position; the chain only ever holds the ciphertext.
+4. **Accrue** (admin, simulated yield source) and **Claim** — both real transactions; each success toast shows the tx hash.
+
+`tail -f bboard-cli/dev-wallet.log` prints every transaction hash and block as it lands. Just want to look around? **Browse pools without a wallet** is read-only.
+
+### Why a dev wallet and not Lace
+
+Lace connects to this stack, but every transaction needs DUST for fees, and DUST registration wasn't available in the Lace build we had. The dev wallet (`bboard-cli/src/dev-wallet-server.ts`) holds the local chain's genesis-funded account and runs the same action sequence as the Lace path (`client/src/midnight/client.js`). **Connect Lace** is still wired for when fees are available.
+
+> **Troubleshooting.** ZK proofs need memory — on a 16 GB machine, close other heavy apps first. If a deploy hangs, the persisted local chain may be corrupt: `cd bboard-cli && docker compose -f compose-standalone.yml down -v`, then `npm run demo` again. Stop the dev wallet with `pkill -f dev-wallet-server.ts`.
+
+<details>
+<summary>Manual steps (what <code>npm run demo</code> does)</summary>
+
+```bash
+cd bboard-cli && docker compose -f compose-standalone.yml up -d
+npx tsx src/dev-wallet-server.ts        # writes client/.env.local when ready
+cd ../client && npm run dev -- --port 5201 --host 127.0.0.1
+```
+
+To recompile after changing the contract: `compact update 0.31.0`, then `cd contract && npm run compact`.
+
+</details>
 
 ## Tests
 
@@ -134,20 +144,22 @@ cd bboard-cli && npx tsx src/e2e-ccp.ts
 Deploys a fresh pool and replays the **exact action sequence the UI runs**, asserting against the public ledger and the encrypted ciphertext rather than UI state:
 
 ```
-15/15 checks passed
+18/18 checks passed
 E2E OK — invest → sweep → disclose → claim, verified on-chain
 ```
 
-It covers deposit→PENDING, sweep→SPENDABLE, `positionCount` incrementing on-chain, disclosure, claim changing the ciphertext, the privacy invariant, and a repeat deposit by the same lender.
+It covers deposit→PENDING, sweep→SPENDABLE, `positionCount` incrementing on-chain, disclosure, claim changing the ciphertext, the privacy invariant, a repeat deposit by the same lender, and owner-gated confidential yield accrual.
 
-**Scope:** contract + API + action layer. The React components and the Lace connector are not covered — those need a browser and a wallet.
+**Scope:** contract + API + action layer. The in-portal flow (dev wallet → deposit → disclose → accrue → claim) was verified by hand in a browser; the Lace connector is not covered.
 
 ## Status
 
 - ✅ **Contract** — `ConfidentialCreditPool.compact`, 10 circuits, compiles to ZK artifacts
 - ✅ **API** — `ConfidentialCreditPoolAPI` (deploy/join, typed wrappers, `state$`)
-- ✅ **FE** — DeFa Arc lender UI on Vite, Lace-gated, live pool wired
-- ✅ **E2E** — 15/15 on a real chain; verified from a clean `git clone`
+- ✅ **FE** — DeFa Arc lender UI on Vite, live pool wired
+- ✅ **In-portal transactions** — invest / disclose / accrue / claim via the local dev wallet, real txs on a local Midnight node
+- ✅ **E2E** — 18/18 on a real chain
+- ⏳ **Lace transactions** — wired; blocked on DUST fee registration in Lace
 - ⏳ **Preprod deploy** for public explorer links — gated on tDUST
 - ⏳ Demo video + submission
 
