@@ -1,5 +1,5 @@
 {
-  "_comment": "DeFa × Midnight Wave-1 — SIMULATED pool portfolio. The borrower side + yield SOURCE are simulated and clearly labelled (Wave-2 = PayMate borrower pipeline). The privacy flow (confidential deposit → private position → confidential yield accrual → claim → disclose) is REAL on-chain via ConfidentialCreditPool. Each pool below drives a DeFa-styled card/detail page; the pool the user actually invests in is wired to the live Midnight contract (see `midnightWired: true`).",
+  "_comment": "DeFa × Midnight Wave-1 — SIMULATED pool portfolio. The borrower side + yield SOURCE are simulated and clearly labelled (Wave-2 = borrower pipeline borrower pipeline). The privacy flow (confidential deposit → private position → confidential yield accrual → claim → disclose) is REAL on-chain via ConfidentialCreditPool. Each pool below drives a DeFa-styled card/detail page; the pool the user actually invests in is wired to the live Midnight contract (see `midnightWired: true`).",
   "_states": [
     "Open",
     "Funding",
@@ -12,7 +12,7 @@
     {
       "id": "ccp-live-01",
       "name": "DeFa Confidential Pool — PSP Settlement Prefunding",
-      "borrower": "PayMate PSP",
+      "borrower": "Licensed PSP — cross-border corridors",
       "sector": "Cross-border payments",
       "state": "Funding",
       "apy": 14.5,
@@ -26,7 +26,7 @@
       "midnightWired": true,
       "simulated": false,
       "privacyNote": "REAL on-chain: your deposit mints an ElGamal-encrypted position on Midnight; amount + identity hidden, only the pool position count is public.",
-      "wave2Note": "PSP settlement repayments (the yield source) are admin-simulated via accrueYield in Wave-1; Wave-2 drives them from the live PayMate settlement pipeline."
+      "wave2Note": "Settlement repayments (the yield source) are admin-simulated via accrueYield in Wave-1; Wave-2 drives them from the live borrower pipeline."
     },
     {
       "id": "ccp-02",
@@ -44,7 +44,7 @@
       "invoiceValue": 1720000,
       "midnightWired": false,
       "simulated": true,
-      "wave2Note": "Borrower + yield simulated (Wave-2: PayMate)."
+      "wave2Note": "Borrower + yield simulated (Wave-2: borrower pipeline)."
     },
     {
       "id": "ccp-03",
@@ -62,12 +62,12 @@
       "invoiceValue": 1120000,
       "midnightWired": false,
       "simulated": true,
-      "wave2Note": "Borrower + yield simulated (Wave-2: PayMate)."
+      "wave2Note": "Borrower + yield simulated (Wave-2: borrower pipeline)."
     },
     {
       "id": "ccp-04",
       "name": "Hospitality Bridge Pool",
-      "borrower": "PayMate PSP — Hotel Group",
+      "borrower": "Licensed PSP — Hotel Group",
       "sector": "Hotel & Food",
       "state": "Repayment",
       "apy": 15.8,
@@ -81,7 +81,7 @@
       "repaidPct": 42,
       "midnightWired": false,
       "simulated": true,
-      "wave2Note": "Borrower + yield simulated (Wave-2: PayMate)."
+      "wave2Note": "Borrower + yield simulated (Wave-2: borrower pipeline)."
     },
     {
       "id": "ccp-05",
@@ -100,7 +100,7 @@
       "repaidPct": 68,
       "midnightWired": false,
       "simulated": true,
-      "wave2Note": "Borrower + yield simulated (Wave-2: PayMate)."
+      "wave2Note": "Borrower + yield simulated (Wave-2: borrower pipeline)."
     },
     {
       "id": "ccp-06",
@@ -120,12 +120,12 @@
       "realizedYield": 41836,
       "midnightWired": false,
       "simulated": true,
-      "wave2Note": "Borrower + yield simulated (Wave-2: PayMate)."
+      "wave2Note": "Borrower + yield simulated (Wave-2: borrower pipeline)."
     },
     {
       "id": "ccp-07",
       "name": "Engineering Contracts Pool",
-      "borrower": "PayMate PSP — EPC Contractor",
+      "borrower": "Licensed PSP — EPC Contractor",
       "sector": "IT & Engineering",
       "state": "Funding",
       "apy": 17.5,
@@ -138,7 +138,7 @@
       "invoiceValue": 2900000,
       "midnightWired": false,
       "simulated": true,
-      "wave2Note": "Borrower + yield simulated (Wave-2: PayMate)."
+      "wave2Note": "Borrower + yield simulated (Wave-2: borrower pipeline)."
     },
     {
       "id": "ccp-08",
@@ -156,12 +156,12 @@
       "invoiceValue": 1240000,
       "midnightWired": false,
       "simulated": true,
-      "wave2Note": "Borrower + yield simulated (Wave-2: PayMate)."
+      "wave2Note": "Borrower + yield simulated (Wave-2: borrower pipeline)."
     },
     {
       "id": "ccp-09",
       "name": "Fintech Receivables Pool",
-      "borrower": "PayMate PSP — Fintech Merchant",
+      "borrower": "Licensed PSP — Fintech Merchant",
       "sector": "Finance & Banking",
       "state": "Funded",
       "apy": 15.0,
@@ -174,7 +174,7 @@
       "invoiceValue": 1780000,
       "midnightWired": false,
       "simulated": true,
-      "wave2Note": "Borrower + yield simulated (Wave-2: PayMate)."
+      "wave2Note": "Borrower + yield simulated (Wave-2: borrower pipeline)."
     },
     {
       "id": "ccp-10",
@@ -192,7 +192,7 @@
       "invoiceValue": 3400000,
       "midnightWired": false,
       "simulated": true,
-      "wave2Note": "Under soft-cap → Unfunded. Borrower + yield simulated (Wave-2: PayMate)."
+      "wave2Note": "Under soft-cap → Unfunded. Borrower + yield simulated (Wave-2: borrower pipeline)."
     },
     {
       "id": "ccp-11",
@@ -211,12 +211,12 @@
       "repaidPct": 25,
       "midnightWired": false,
       "simulated": true,
-      "wave2Note": "Borrower + yield simulated (Wave-2: PayMate)."
+      "wave2Note": "Borrower + yield simulated (Wave-2: borrower pipeline)."
     },
     {
       "id": "ccp-12",
       "name": "Prime Banking Receivables II",
-      "borrower": "PayMate PSP — Tier-1 Merchant",
+      "borrower": "Licensed PSP — Tier-1 Merchant",
       "sector": "Finance & Banking",
       "state": "Closed",
       "apy": 13.2,
@@ -231,7 +231,7 @@
       "realizedYield": 65753,
       "midnightWired": false,
       "simulated": true,
-      "wave2Note": "Borrower + yield simulated (Wave-2: PayMate)."
+      "wave2Note": "Borrower + yield simulated (Wave-2: borrower pipeline)."
     }
   ]
 }

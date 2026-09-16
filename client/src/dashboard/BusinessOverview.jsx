@@ -11,7 +11,7 @@ const Row = ({ label, value }) => (
 );
 
 const BusinessOverview = ({
-  company = "PayMate PSP",
+  company = "Licensed PSP",
   established = "2019",
   industry = "Cross-border payments",
   focus = "PSP settlement prefunding",
