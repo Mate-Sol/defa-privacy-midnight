@@ -9,8 +9,11 @@ real either way.
 ## Setup (before recording)
 
 ```bash
-npm run demo        # stack + deploy + FE on :5201
+npm run demo        # stack + dev wallet + FE on :5201
 ```
+
+If the stack is **already running** (portal on `:5201`, `curl -s localhost:5301/status`
+shows `"ready":true`), skip this — `npm run demo` redeploys and costs several minutes.
 
 Second terminal ready, sitting in `bboard-cli/`, with this typed but not run:
 
@@ -21,7 +24,8 @@ npx tsx src/e2e-ccp.ts
 Checklist:
 - [ ] `npm run demo` printed `dev wallet: http://127.0.0.1:5301` (sync + deploy takes a few minutes)
 - [ ] `127.0.0.1:5201` loads the connect screen, with **Use local dev wallet** under Connect Lace
-- [ ] "Browse pools without a wallet" opens the Pools grid (read-only; actions still need Lace)
+- [ ] **Use local dev wallet** reaches the dashboard (that is the signer for every action)
+- [ ] "Browse pools without a wallet" opens the Pools grid read-only, for the look-around shot
 - [ ] if the deploy step hangs: `cd bboard-cli && docker compose -f compose-standalone.yml down -v`, then `npm run demo` again
 - [ ] close other Chrome tabs first — proofs stall when the Mac is out of memory
 - [ ] `docker ps` shows node / indexer / proof-server
@@ -79,7 +83,7 @@ deposit rail). Then, on camera:
 > dev account — Lace can't pay fees on this stack yet — but the transactions,
 > the proofs and the encrypted position are the real thing."
 
-Tip: `tail -f bboard-cli/dev-wallet.log` prints each tx hash as it lands — a
+Tip: `tail -f bboard-cli/dev-wallet.log | grep --line-buffered -E "^  tx |READY"` prints each tx hash as it lands, without npm noise — a
 split-screen of it next to the portal is the most convincing shot. Cut the
 proof waits in editing.
 
