@@ -1,15 +1,22 @@
 {
   "_comment": "DeFa × Midnight Wave-1 — SIMULATED pool portfolio. The borrower side + yield SOURCE are simulated and clearly labelled (Wave-2 = PayMate borrower pipeline). The privacy flow (confidential deposit → private position → confidential yield accrual → claim → disclose) is REAL on-chain via ConfidentialCreditPool. Each pool below drives a DeFa-styled card/detail page; the pool the user actually invests in is wired to the live Midnight contract (see `midnightWired: true`).",
-  "_states": ["Open", "Funding", "Funded", "Repayment", "Closed", "Unfunded"],
+  "_states": [
+    "Open",
+    "Funding",
+    "Funded",
+    "Repayment",
+    "Closed",
+    "Unfunded"
+  ],
   "pools": [
     {
       "id": "ccp-live-01",
-      "name": "DeFa Confidential Pool — Prime SME Receivables",
-      "borrower": "PayMate PSP (aggregated SMEs)",
-      "sector": "Finance & Banking",
+      "name": "DeFa Confidential Pool — PSP Settlement Prefunding",
+      "borrower": "PayMate PSP",
+      "sector": "Cross-border payments",
       "state": "Funding",
       "apy": 14.5,
-      "tenorDays": 90,
+      "tenorDays": 14,
       "currency": "USD",
       "hardCap": 2000000,
       "softCap": 500000,
@@ -18,8 +25,8 @@
       "invoiceValue": 2350000,
       "midnightWired": true,
       "simulated": false,
-      "privacyNote": "REAL on-chain: your deposit mints an ElGamal-encrypted position on Midnight; amount + identity hidden, pool total public.",
-      "wave2Note": "Borrower repayments (yield source) are admin-simulated via accrueYield in Wave-1; Wave-2 drives them from the live PayMate pipeline."
+      "privacyNote": "REAL on-chain: your deposit mints an ElGamal-encrypted position on Midnight; amount + identity hidden, only the pool position count is public.",
+      "wave2Note": "PSP settlement repayments (the yield source) are admin-simulated via accrueYield in Wave-1; Wave-2 drives them from the live PayMate settlement pipeline."
     },
     {
       "id": "ccp-02",

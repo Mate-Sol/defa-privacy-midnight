@@ -11,12 +11,13 @@ const Row = ({ label, value }) => (
 );
 
 const BusinessOverview = ({
+  company = "PayMate PSP",
   established = "2019",
   industry = "Cross-border payments",
-  focus = "SME trade finance",
-  specialization = "USDC settlement operator",
+  focus = "PSP settlement prefunding",
+  specialization = "USDC settlement corridors",
   market = "UAE ↔ Pakistan · UAE ↔ South Africa corridors",
-  about = "Licensed remittance & USDC settlement operator serving cross-border SMEs.",
+  about = "Licensed remittance & USDC settlement operator running cross-border payment corridors.",
   financials = {
     revenue: "$ 42.6M",
     netProfit: "$ 3.8M",
@@ -51,7 +52,7 @@ const BusinessOverview = ({
           variant="caption"
           className="mb-1 block text-sm! text-white"
         >
-          About 360Data
+          About {company}
         </Typography>
         <Typography
           variant="body2"

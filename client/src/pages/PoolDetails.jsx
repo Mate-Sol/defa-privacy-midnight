@@ -154,6 +154,7 @@ const PoolDetails = () => {
                 kyrReportFilename={deal?.kyrReport?.filename}
                 companyName={deal?.business?.company || deal?.poolName}
                 about={deal?.business?.description || undefined}
+                company={deal?.business?.company || undefined}
                 industry={deal?.business?.sector || undefined}
                 market={deal?.business?.jurisdiction || undefined}
               />
@@ -171,6 +172,7 @@ const PoolDetails = () => {
                 kyrReportFilename={deal?.kyrReport?.filename}
                 companyName={deal?.business?.company || deal?.poolName}
                 about={deal?.business?.description || undefined}
+                company={deal?.business?.company || undefined}
                 industry={deal?.business?.sector || undefined}
                 market={deal?.business?.jurisdiction || undefined}
               />}

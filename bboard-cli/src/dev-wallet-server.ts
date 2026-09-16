@@ -130,8 +130,8 @@ async function init(): Promise<void> {
   api = await ConfidentialCreditPoolAPI.deploy(
     providers,
     {
-      name: 'DeFa Confidential Position',
-      symbol: 'dLP',
+      name: 'DeFa PSP Settlement Position',
+      symbol: 'dPSP',
       decimals: 6n,
       ownerAccount,
       initialPrivateState,
